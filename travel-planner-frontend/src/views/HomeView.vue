@@ -178,9 +178,7 @@ const fetchTravelPlans = async () => {
 
 // 创建新计划
 const handleCreatePlan = () => {
-  ElMessage.info('创建旅行计划功能开发中...')
-  // TODO: 跳转到创建计划页面
-  // router.push('/plan/create')
+  router.push('/plan/create')
 }
 
 // 查看计划详情

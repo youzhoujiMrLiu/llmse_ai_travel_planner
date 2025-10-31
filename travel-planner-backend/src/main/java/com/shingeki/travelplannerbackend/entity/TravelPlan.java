@@ -1,6 +1,8 @@
 package com.shingeki.travelplannerbackend.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -40,6 +42,7 @@ public class TravelPlan {
     @Column(name = "travelers", nullable = false)
     private Integer travelers = 1;
 
+    @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "preferences", columnDefinition = "text[]")
     private String[] preferences;
 
@@ -49,6 +52,7 @@ public class TravelPlan {
     @Column(name = "user_input", columnDefinition = "TEXT")
     private String userInput;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "ai_generated_plan", columnDefinition = "jsonb")
     private String aiGeneratedPlan;
 

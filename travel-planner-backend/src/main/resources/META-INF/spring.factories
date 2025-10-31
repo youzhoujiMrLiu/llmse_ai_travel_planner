@@ -1,0 +1,5 @@
+# Spring Boot 2.7+ / Spring Framework 6.0+ 配置
+# 注册 ApplicationContextInitializer 来加载 .env 文件
+
+org.springframework.context.ApplicationContextInitializer=\
+com.shingeki.travelplannerbackend.config.DotEnvLoader

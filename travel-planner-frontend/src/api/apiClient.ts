@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase' // 引入你的 supabase 客户端
 
 const apiClient = axios.create({
   baseURL: '/api',
-  timeout: 10000,
+  timeout: 60000, // 60秒超时,适合 AI 请求等耗时操作
 })
 
 apiClient.interceptors.request.use(async (config) => {

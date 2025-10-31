@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '@/views/LoginView.vue'
 import HomeView from '@/views/HomeView.vue'
+import CreatePlanView from '@/views/CreatePlanView.vue'
 import { supabase } from '@/lib/supabase'
 
 const router = createRouter({
@@ -15,6 +16,12 @@ const router = createRouter({
       path: '/home',
       name: 'Home',
       component: HomeView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/plan/create',
+      name: 'CreatePlan',
+      component: CreatePlanView,
       meta: { requiresAuth: true }
     },
     {

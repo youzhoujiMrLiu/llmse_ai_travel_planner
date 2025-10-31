@@ -5,7 +5,7 @@ import axios from 'axios'
 // 创建专用的 API 客户端（带拦截器）
 const authApiClient = axios.create({
   baseURL: '/api', // 会被 Vite 代理到 Spring Boot
-  timeout: 10000,
+  timeout: 30000, // 30秒超时,适合认证和常规 API 请求
 })
 
 // 请求拦截器：自动附加 Supabase access_token
