@@ -109,4 +109,18 @@ public class SupabaseJwtValidator {
             throw new RuntimeException("RSA JWT validation failed: " + e.getMessage(), e);
         }
     }
+
+    /**
+     * 验证 JWT 并返回用户 ID
+     */
+    public java.util.UUID validateTokenAndGetUserId(String authHeader) {
+        Claims claims = validate(authHeader);
+        String userIdStr = claims.getSubject(); // JWT 的 sub 字段包含用户 ID
+        
+        if (userIdStr == null || userIdStr.isEmpty()) {
+            throw new RuntimeException("User ID not found in JWT");
+        }
+        
+        return java.util.UUID.fromString(userIdStr);
+    }
 }

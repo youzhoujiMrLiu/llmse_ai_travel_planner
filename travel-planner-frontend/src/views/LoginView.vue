@@ -139,9 +139,9 @@ const handleSubmit = async () => {
       }
 
       ElMessage.success(isLoginMode.value ? '登录成功！' : '注册成功！')
-      // 登录成功才跳转到 dashboard
+      // 登录成功才跳转到主页
       if (isLoginMode.value) {
-        await router.push('/dashboard')
+        await router.push('/home')
       } else {
         // 注册成功后切换到登录模式
         isLoginMode.value = true
@@ -192,8 +192,5 @@ const handleSubmit = async () => {
   margin-top: 12px;
 }
 
-:deep(.el-form-item__content) {
-  display: flex;
-  flex-direction: column;
-}
+
 </style>

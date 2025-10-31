@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '@/views/LoginView.vue'
-import DashboardView from '@/views/DashboardView.vue'
+import HomeView from '@/views/HomeView.vue'
 import { supabase } from '@/lib/supabase'
 
 const router = createRouter({
@@ -12,14 +12,19 @@ const router = createRouter({
       component: LoginView
     },
     {
-      path: '/dashboard',
-      name: 'Dashboard',
-      component: DashboardView,
+      path: '/home',
+      name: 'Home',
+      component: HomeView,
       meta: { requiresAuth: true }
     },
     {
       path: '/',
-      redirect: '/dashboard'
+      redirect: '/home'
+    },
+    // 兼容旧路由，重定向到新路由
+    {
+      path: '/dashboard',
+      redirect: '/home'
     }
   ],
 })
@@ -33,8 +38,8 @@ router.beforeEach(async (to, from, next) => {
     // 需要登录但未登录 → 跳转到登录页
     next({ name: 'Login', query: { redirect: to.fullPath } })
   } else if (to.name === 'Login' && isAuthenticated) {
-    // 已登录还访问登录页 → 跳转到 dashboard
-    next({ name: 'Dashboard' })
+    // 已登录还访问登录页 → 跳转到主页
+    next({ name: 'Home' })
   } else {
     next()
   }
