@@ -27,12 +27,15 @@ public class AIService {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
-
+    
     // 构造函数注入,配置超时时间
     public AIService(RestTemplateBuilder restTemplateBuilder) {
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout((int) Duration.ofSeconds(10).toMillis());  // 连接超时 10 秒
+        factory.setReadTimeout((int) Duration.ofSeconds(120).toMillis());    // 读取超时 120 秒(AI 生成需要较长时间)
+        
         this.restTemplate = restTemplateBuilder
-                .setConnectTimeout(Duration.ofSeconds(10))  // 连接超时 10 秒
-                .setReadTimeout(Duration.ofSeconds(120))    // 读取超时 120 秒(AI 生成需要较长时间)
+                .requestFactory(() -> factory)
                 .build();
     }
 

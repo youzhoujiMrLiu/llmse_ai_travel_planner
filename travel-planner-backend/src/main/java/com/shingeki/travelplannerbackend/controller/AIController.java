@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * AI 控制器 - 生成旅行计划
@@ -36,7 +35,7 @@ public class AIController {
             @RequestHeader("Authorization") String authHeader) {
         
         // 验证用户身份
-        UUID userId = jwtValidator.validateTokenAndGetUserId(authHeader);
+        jwtValidator.validateTokenAndGetUserId(authHeader);
         
         // 调用 AI 服务生成计划
         GeneratedPlanResponse response = aiService.generateTravelPlan(request);
