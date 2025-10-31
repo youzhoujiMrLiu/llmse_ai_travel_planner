@@ -29,6 +29,7 @@ export interface GeocodingResult {
 export class AmapService {
   private map: any = null
   private geocoder: any = null
+  private placeSearch: any = null
   private markers: any[] = []
   private polylines: any[] = []
 
@@ -51,47 +52,155 @@ export class AmapService {
       pitch: 50, // 俯仰角度
     })
 
-    // 初始化地理编码器
-    this.geocoder = new AMap.Geocoder({
-      city: '全国', // 城市设为全国范围
-    })
+    console.log('地图初始化成功')
+
+    // 初始化地理编码器 - 确保 AMap.Geocoder 已加载
+    if (window.AMap.Geocoder) {
+      this.geocoder = new AMap.Geocoder({
+        city: '全国', // 城市设为全国范围
+      })
+      console.log('地理编码器初始化成功')
+    } else {
+      console.error('AMap.Geocoder 插件未加载')
+    }
+
+    // 初始化地点搜索服务
+    if (window.AMap.PlaceSearch) {
+      this.placeSearch = new AMap.PlaceSearch({
+        pageSize: 1, // 只取第一个结果
+        pageIndex: 1,
+        city: '全国',
+        citylimit: false, // 不限制城市
+        extensions: 'base' // 返回基本信息
+      })
+      console.log('地点搜索服务初始化成功')
+    } else {
+      console.error('AMap.PlaceSearch 插件未加载')
+    }
 
     return this.map
   }
 
   /**
-   * 地理编码 - 将地点名称/地址转换为坐标
+   * 地点搜索 - 通过后端代理调用高德 Web 服务 API（推荐使用，比地理编码更准确）
+   * @param keyword 地点名称关键词
+   * @param city 限定城市（可选）
+   * @returns Promise<GeocodingResult>
+   */
+  async searchPlace(keyword: string, city?: string): Promise<GeocodingResult> {
+    try {
+      console.log(`🔍 正在搜索地点: ${keyword}${city ? ` (城市: ${city})` : ''}`)
+
+      // 通过后端接口调用高德 Web 服务 API
+      const params = new URLSearchParams({
+        keywords: keyword,
+      })
+      if (city) {
+        params.append('city', city)
+      }
+
+      const response = await fetch(`http://localhost:8080/api/map/search?${params.toString()}`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+
+      console.log(`地点搜索响应:`, result)
+
+      if (result.status === '1' && result.pois && result.pois.length > 0) {
+        const poi = result.pois[0]
+        const [lng, lat] = poi.location.split(',').map(Number)
+
+        console.log(`✅ 地点搜索成功: ${keyword} -> ${poi.name} [${lng}, ${lat}]`)
+
+        return {
+          success: true,
+          location: {
+            name: poi.name,
+            address: poi.address || (poi.pname + poi.cityname + poi.adname),
+            lng: lng,
+            lat: lat,
+          },
+        }
+      } else {
+        console.warn(`❌ 地点搜索失败: ${keyword}`)
+        return {
+          success: false,
+          error: `未找到地点: ${keyword}`,
+        }
+      }
+    } catch (error: any) {
+      console.error(`地点搜索异常: ${keyword}`, error)
+      return {
+        success: false,
+        error: `地点搜索异常: ${keyword}`,
+      }
+    }
+  }
+
+  /**
+   * 地理编码 - 将地点名称/地址转换为坐标（已废弃，推荐使用 searchPlace）
    * @param address 地点名称或地址
    * @returns Promise<GeocodingResult>
    */
   async geocode(address: string): Promise<GeocodingResult> {
     return new Promise((resolve) => {
       if (!this.geocoder) {
+        console.error('地理编码器未初始化，无法进行地理编码')
         resolve({ success: false, error: '地理编码器未初始化' })
         return
       }
 
-      this.geocoder.getLocation(address, (status: string, result: any) => {
-        if (status === 'complete' && result.geocodes && result.geocodes.length > 0) {
-          const geocode = result.geocodes[0]
-          const location = geocode.location
+      console.log(`正在对地点进行地理编码: ${address}`)
 
-          resolve({
-            success: true,
-            location: {
-              name: address,
-              address: geocode.formattedAddress,
-              lng: location.lng,
-              lat: location.lat,
-            },
-          })
-        } else {
-          resolve({
-            success: false,
-            error: `无法定位: ${address}`,
-          })
-        }
-      })
+      // 设置超时，避免回调永远不返回
+      const timeout = setTimeout(() => {
+        console.error(`地理编码超时: ${address} (10秒无响应)`)
+        resolve({
+          success: false,
+          error: `地理编码超时: ${address}`,
+        })
+      }, 10000)
+
+      try {
+        this.geocoder.getLocation(address, (status: string, result: any) => {
+          clearTimeout(timeout)
+          
+          console.log(`地理编码回调触发 - 地点: ${address}, 状态: ${status}`, result)
+
+          if (status === 'complete' && result.geocodes && result.geocodes.length > 0) {
+            const geocode = result.geocodes[0]
+            const location = geocode.location
+
+            console.log(`✅ 地理编码成功: ${address} -> [${location.lng}, ${location.lat}]`)
+
+            resolve({
+              success: true,
+              location: {
+                name: address,
+                address: geocode.formattedAddress,
+                lng: location.lng,
+                lat: location.lat,
+              },
+            })
+          } else {
+            console.warn(`❌ 地理编码失败: ${address}, 状态: ${status}, 结果:`, result)
+            resolve({
+              success: false,
+              error: `无法定位: ${address} (状态: ${status})`,
+            })
+          }
+        })
+      } catch (error) {
+        clearTimeout(timeout)
+        console.error(`地理编码异常: ${address}`, error)
+        resolve({
+          success: false,
+          error: `地理编码异常: ${address}`,
+        })
+      }
     })
   }
 
@@ -101,15 +210,22 @@ export class AmapService {
    * @returns Promise<GeocodingResult[]>
    */
   async batchGeocode(addresses: string[]): Promise<GeocodingResult[]> {
+    console.log(`开始批量地理编码，共 ${addresses.length} 个地点`)
     const results: GeocodingResult[] = []
 
-    for (const address of addresses) {
-      // 添加短暂延迟避免请求过快
-      await new Promise((resolve) => setTimeout(resolve, 200))
+    for (let i = 0; i < addresses.length; i++) {
+      const address = addresses[i]
+      if (!address) continue
+
+      // 增加延迟到 500ms，避免高德 API 频率限制
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      }
       const result = await this.geocode(address)
       results.push(result)
     }
 
+    console.log(`批量地理编码完成，成功: ${results.filter(r => r.success).length}，失败: ${results.filter(r => !r.success).length}`)
     return results
   }
 

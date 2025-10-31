@@ -18,9 +18,9 @@
         <div class="content-wrapper">
           <!-- 步骤指示器 -->
           <el-steps :active="currentStep" align-center class="steps">
-            <el-step title="输入需求" icon="Edit" />
-            <el-step title="AI 生成方案" icon="MagicStick" />
-            <el-step title="确认并保存" icon="Check" />
+            <el-step title="输入需求" :icon="Edit" />
+            <el-step title="AI 生成方案" :icon="MagicStick" />
+            <el-step title="确认并保存" :icon="Check" />
           </el-steps>
 
           <!-- 步骤 1: 输入需求 -->
@@ -171,6 +171,20 @@
                   </el-select>
                 </el-form-item>
 
+                <el-form-item label="额外要求">
+                  <el-input
+                    v-model="form.additionalRequirements"
+                    type="textarea"
+                    :rows="3"
+                    placeholder="例如：预算主要用于美食，住宿标准要高一些，早上不要安排太早的活动..."
+                    maxlength="500"
+                    show-word-limit
+                  />
+                  <div class="input-hint">
+                    💡 可以补充特殊需求、注意事项等
+                  </div>
+                </el-form-item>
+
                 <el-alert
                   v-if="inputMode === 'smart' && form.userInput"
                   title="提示"
@@ -263,24 +277,28 @@
                 
                 <el-alert
                   v-if="mapLoadingStatus === 'loading'"
-                  title="正在定位行程中的地点..."
+                  :title="`正在定位行程中的地点... (${geocodedCount}/${totalPlaces})`"
                   type="info"
                   :closable="false"
                   show-icon
                   style="margin-bottom: 16px"
                 >
-                  使用高德地图 API 进行地理编码,请稍候
+                  <el-progress :percentage="totalPlaces > 0 ? Math.round((geocodedCount / totalPlaces) * 100) : 0" />
+                  <div style="margin-top: 8px; font-size: 12px">使用高德地图 API 进行地理编码，每个地点间隔 500ms 以避免频率限制</div>
                 </el-alert>
 
                 <el-alert
                   v-if="mapLoadingStatus === 'error'"
-                  title="地图加载失败"
-                  type="warning"
+                  :title="mapErrorMessage.includes('仅支持中国') ? '地图功能不可用' : '地图加载失败'"
+                  :type="mapErrorMessage.includes('仅支持中国') ? 'info' : 'warning'"
                   :closable="false"
                   show-icon
                   style="margin-bottom: 16px"
                 >
-                  {{ mapErrorMessage }}
+                  <div v-html="mapErrorMessage"></div>
+                  <div v-if="mapErrorMessage.includes('仅支持中国')" style="margin-top: 8px; font-size: 12px; color: #909399">
+                    💡 提示：您可以在下方查看 AI 生成的详细行程安排
+                  </div>
                 </el-alert>
 
                 <el-alert
@@ -365,20 +383,22 @@
 
           <!-- 步骤 3: 保存成功 -->
           <div v-if="currentStep === 2" class="step-content">
-            <el-result
-              icon="success"
-              title="计划创建成功！"
-              sub-title="你的旅行计划已保存，随时可以查看和修改"
-            >
-              <template #extra>
-                <el-button type="primary" @click="goToHome">
-                  查看我的计划
-                </el-button>
-                <el-button @click="resetForm">
-                  继续创建
-                </el-button>
-              </template>
-            </el-result>
+            <el-card class="success-card">
+              <el-result
+                icon="success"
+                title="计划创建成功！"
+                sub-title="你的旅行计划已保存，随时可以查看和修改"
+              >
+                <template #extra>
+                  <el-button type="primary" @click="goToHome">
+                    查看我的计划
+                  </el-button>
+                  <el-button @click="resetForm">
+                    继续创建
+                  </el-button>
+                </template>
+              </el-result>
+            </el-card>
           </div>
         </div>
       </el-main>
@@ -396,9 +416,11 @@ import {
   Location,
   CircleCheck,
   MagicStick,
-  InfoFilled
+  InfoFilled,
+  Edit,
+  Check
 } from '@element-plus/icons-vue'
-import { generateTravelPlan, type GeneratedPlanResponse, type GeneratePlanRequest } from '@/api/aiApi'
+import { generateTravelPlan, parseUserInput, type GeneratedPlanResponse, type GeneratePlanRequest, type ParsedUserInput } from '@/api/aiApi'
 import { createTravelPlan } from '@/api/travelPlanApi'
 import { WebSpeechRecognition } from '@/services/speechService'
 import { getAmapService, type Location as AmapLocation } from '@/services/amapService'
@@ -419,6 +441,7 @@ const mapLoadingStatus = ref<'idle' | 'loading' | 'success' | 'error'>('idle')
 const mapErrorMessage = ref('')
 const unlocatedPlaces = ref<string[]>([]) // 无法定位的地点
 const totalPlaces = ref(0) // 总地点数
+const geocodedCount = ref(0) // 已完成地理编码的地点数
 const locationCache = ref<Map<string, AmapLocation>>(new Map()) // 地点坐标缓存
 
 let speechRecognition: WebSpeechRecognition | null = null
@@ -432,13 +455,15 @@ const form = reactive<{
   budget: number
   travelers: number
   preferences: string[]
+  additionalRequirements: string
 }>({
   userInput: '',
   destination: '',
   duration: 5,
   budget: 5000,
   travelers: 1,
-  preferences: []
+  preferences: [],
+  additionalRequirements: ''
 })
 
 // 表单验证规则（动态验证，智能模式需要 userInput，手动模式不需要）
@@ -495,8 +520,8 @@ const startVoiceInput = () => {
     speechRecognition.startRecognition(
       (text: string) => {
         form.userInput = text
-        // 尝试从语音中提取信息
-        parseUserInput(text)
+        // 语音输入完成后，提示用户点击解析按钮
+        ElMessage.success('语音识别完成，请点击"智能识别"按钮进行解析')
       },
       (error: string) => {
         ElMessage.error(error)
@@ -517,99 +542,13 @@ const stopVoiceInput = () => {
 }
 
 // 解析用户输入（增强的关键词提取和模式匹配）
-const parseUserInput = (text: string) => {
-  if (!text || text.trim().length === 0) {
-    return
-  }
-
-  // 提取目的地（多种模式）
-  const destinationPatterns = [
-    /(?:去|到|想去|前往|计划去)([^\s,，。]+?)(?:[,，。\s]|旅游|旅行|玩)/,
-    /([^\s,，。]+?)(?:旅游|旅行|自由行|跟团)/
-  ]
-  
-  for (const pattern of destinationPatterns) {
-    const match = text.match(pattern)
-    if (match && match[1]) {
-      form.destination = match[1].trim()
-      break
-    }
-  }
-
-  // 提取天数（多种表达方式）
-  const durationPatterns = [
-    /(\d+)\s*(?:天|日)/,
-    /(?:玩|待|呆)\s*(\d+)\s*(?:天|日)/
-  ]
-  
-  for (const pattern of durationPatterns) {
-    const match = text.match(pattern)
-    if (match && match[1]) {
-      form.duration = parseInt(match[1])
-      break
-    }
-  }
-
-  // 提取预算（支持多种格式）
-  const budgetPatterns = [
-    /(?:预算|花费|费用|大概|大约).*?(\d+(?:\.\d+)?)\s*万/,
-    /(\d+(?:\.\d+)?)\s*万.*?(?:预算|费用|元)/,
-    /(?:预算|花费|费用).*?(\d+)\s*(?:元|块)/
-  ]
-  
-  for (const pattern of budgetPatterns) {
-    const match = text.match(pattern)
-    if (match && match[1]) {
-      const amount = parseFloat(match[1])
-      form.budget = text.includes('万') ? Math.round(amount * 10000) : amount
-      break
-    }
-  }
-
-  // 提取同行人数
-  const travelersPatterns = [
-    /(\d+)\s*(?:个人|人|位)/,
-    /(?:带|和|跟).*?(\d+)\s*(?:个人|人)/,
-    /(?:一家|全家)\s*(\d+)\s*(?:口|人)/
-  ]
-  
-  for (const pattern of travelersPatterns) {
-    const match = text.match(pattern)
-    if (match && match[1]) {
-      form.travelers = parseInt(match[1])
-      break
-    }
-  }
-  
-  // 特殊情况：识别亲子游、家庭游
-  if (text.includes('带孩子') || text.includes('亲子') || text.includes('孩子')) {
-    if (form.travelers <= 1) {
-      form.travelers = 2 // 至少2人
-    }
-    if (!form.preferences.includes('亲子')) {
-      form.preferences.push('亲子')
-    }
-  }
-
-  // 提取偏好（使用关键词匹配）
-  const preferenceKeywords = ['美食', '文化', '自然', '购物', '动漫', '历史', '亲子', '休闲', '探险']
-  const extractedPreferences = preferenceKeywords.filter(keyword => text.includes(keyword))
-  
-  // 合并偏好（避免重复）
-  extractedPreferences.forEach(pref => {
-    if (!form.preferences.includes(pref)) {
-      form.preferences.push(pref)
-    }
-  })
-
-  // 显示提示
-  if (form.destination || form.duration > 1 || form.budget > 100 || form.preferences.length > 0) {
-    ElMessage.success('AI 已自动识别并填充信息，请检查确认')
-  }
-}
+// 旧的本地解析函数（已被 AI 解析替代，保留作为备用）
+// const parseUserInputLocal = (text: string) => {
+//   ... 原有代码 ...
+// }
 
 // 智能识别按钮处理
-const handleSmartParse = () => {
+const handleSmartParse = async () => {
   if (!form.userInput || form.userInput.trim().length === 0) {
     ElMessage.warning('请先输入旅行需求描述')
     return
@@ -617,11 +556,47 @@ const handleSmartParse = () => {
 
   parsing.value = true
   
-  // 添加短暂延迟,让用户感受到 AI 在工作
-  setTimeout(() => {
-    parseUserInput(form.userInput)
+  try {
+    ElMessage({
+      message: '🤖 通义千问 AI 正在智能解析你的需求...',
+      type: 'info',
+      duration: 2000
+    })
+    
+    const parsedData = await parseUserInput(form.userInput)
+    
+    // 填充表单数据
+    if (parsedData.destination) {
+      form.destination = parsedData.destination
+    }
+    if (parsedData.duration) {
+      form.duration = parsedData.duration
+    }
+    if (parsedData.budget) {
+      form.budget = parsedData.budget
+    }
+    if (parsedData.travelers) {
+      form.travelers = parsedData.travelers
+    }
+    if (parsedData.preferences && parsedData.preferences.length > 0) {
+      // 合并偏好（避免重复）
+      parsedData.preferences.forEach((pref: string) => {
+        if (!form.preferences.includes(pref)) {
+          form.preferences.push(pref)
+        }
+      })
+    }
+    if (parsedData.additionalRequirements) {
+      form.additionalRequirements = parsedData.additionalRequirements
+    }
+    
+    ElMessage.success('✨ AI 已智能识别并填充信息，请检查确认')
+  } catch (error: any) {
+    console.error('智能解析失败:', error)
+    ElMessage.error('智能解析失败，请手动填写表单')
+  } finally {
     parsing.value = false
-  }, 800)
+  }
 }
 
 // 生成旅行计划
@@ -648,7 +623,8 @@ const handleGeneratePlan = async () => {
         duration: form.duration,
         budget: form.budget,
         travelers: form.travelers,
-        preferences: form.preferences.join(',')
+        preferences: form.preferences.join(','),
+        additionalRequirements: form.additionalRequirements
       }
 
       generatedPlan.value = await generateTravelPlan(request)
@@ -656,9 +632,7 @@ const handleGeneratePlan = async () => {
       
       ElMessage.success('🎉 计划生成成功！AI 已为你规划了详细的行程')
       
-      // 等待 DOM 更新后初始化地图
-      await nextTick()
-      await initializeMap()
+      // 地图初始化由 watch(generatedPlan) 自动触发，不需要在这里调用
     } catch (error: any) {
       console.error('生成计划失败:', error)
       const errorMsg = error.response?.data?.error || error.message || '生成计划失败'
@@ -764,28 +738,64 @@ const getActivityTypeText = (type: string) => {
  */
 const initializeMap = async () => {
   try {
+    // 防止重复初始化
+    if (mapLoadingStatus.value === 'loading') {
+      console.log('地图正在初始化中，跳过重复调用')
+      return
+    }
+
     mapLoadingStatus.value = 'loading'
     mapErrorMessage.value = ''
     unlocatedPlaces.value = []
+    geocodedCount.value = 0
+
+    // 检查目的地是否在中国境内（高德地图仅支持中国）
+    const chinaKeywords = ['中国', '北京', '上海', '广州', '深圳', '杭州', '成都', '西安', '重庆', 
+                          '天津', '南京', '武汉', '苏州', '郑州', '长沙', '青岛', '济南', '厦门',
+                          '省', '市', '县', '区', '香港', '澳门', '台湾']
+    
+    const isChina = chinaKeywords.some(keyword => form.destination.includes(keyword))
+    
+    if (!isChina) {
+      console.warn(`目的地 "${form.destination}" 可能不在中国境内，高德地图仅支持中国地区`)
+      mapLoadingStatus.value = 'error'
+      mapErrorMessage.value = `高德地图仅支持中国境内地点定位，"${form.destination}" 无法在地图上显示路线。您仍可以查看生成的行程计划。`
+      return
+    }
 
     // 检查高德地图 SDK 是否加载
     if (!window.AMap) {
+      console.error('高德地图 SDK 未加载')
       mapLoadingStatus.value = 'error'
       mapErrorMessage.value = '高德地图 SDK 未加载,请检查网络连接或刷新页面'
       return
     }
 
+    console.log('开始初始化地图...')
+
     // 初始化地图
-    amapService.initMap('amap-container', [116.397428, 39.90923], 12)
+    const map = amapService.initMap('amap-container', [116.397428, 39.90923], 12)
+    
+    if (!map) {
+      throw new Error('地图初始化失败')
+    }
+
+    // 等待一小段时间确保地图完全加载
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    console.log('地图初始化完成，开始地理编码...')
 
     // 收集所有地点并进行地理编码
     await geocodeAllActivities()
+
+    console.log('地理编码完成，显示第一天路线...')
 
     // 显示第一天的路线
     selectedDay.value = 1
     await displayDayRoute(1)
 
     mapLoadingStatus.value = 'success'
+    console.log('地图初始化和路线显示完成')
   } catch (error: any) {
     console.error('地图初始化失败:', error)
     mapLoadingStatus.value = 'error'
@@ -801,36 +811,47 @@ const geocodeAllActivities = async () => {
 
   const allPlaces: string[] = []
   
-  // 收集所有地点
+  // 收集所有地点（只存储原始地点名称）
   generatedPlan.value.dailyPlans.forEach((dayPlan) => {
     dayPlan.activities.forEach((activity) => {
-      if (activity.location) {
-        // 组合目的地和具体地点,提高定位准确率
-        const fullLocation = `${form.destination} ${activity.location}`
-        if (!allPlaces.includes(fullLocation)) {
-          allPlaces.push(fullLocation)
-        }
+      if (activity.location && !allPlaces.includes(activity.location)) {
+        allPlaces.push(activity.location)
       }
     })
   })
 
   totalPlaces.value = allPlaces.length
+  geocodedCount.value = 0
+  unlocatedPlaces.value = []
 
-  // 批量地理编码
-  const results = await amapService.batchGeocode(allPlaces)
+  console.log(`开始地点搜索，共 ${allPlaces.length} 个地点`)
 
-  // 缓存结果并统计失败的地点
-  results.forEach((result, index) => {
-    const place = allPlaces[index]
-    if (!place) return
+  // 逐个进行地点搜索，实时更新进度
+  for (let i = 0; i < allPlaces.length; i++) {
+    const placeName = allPlaces[i]
+    if (!placeName) continue
+    
+    // 添加延迟避免频率限制
+    if (i > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+
+    // 使用地点搜索 API（比地理编码更准确）
+    const result = await amapService.searchPlace(placeName, form.destination)
     
     if (result.success && result.location) {
-      locationCache.value.set(place, result.location)
+      // 使用原始地点名称作为 key
+      locationCache.value.set(placeName, result.location)
+      console.log(`✅ 地点搜索成功: ${placeName} -> ${result.location.name}`)
     } else {
-      const displayName = place.replace(`${form.destination} `, '')
-      unlocatedPlaces.value.push(displayName)
+      unlocatedPlaces.value.push(placeName)
+      console.warn(`❌ 地点搜索失败: ${placeName}`)
     }
-  })
+
+    geocodedCount.value = i + 1
+  }
+
+  console.log(`地点搜索完成: 成功 ${totalPlaces.value - unlocatedPlaces.value.length}/${totalPlaces.value}`)
 }
 
 /**
@@ -853,8 +874,8 @@ const displayDayRoute = async (day: number) => {
   dayPlan.activities.forEach((activity) => {
     if (!activity.location) return
 
-    const fullLocation = `${form.destination} ${activity.location}`
-    const cachedLocation = locationCache.value.get(fullLocation)
+    // 直接使用原始地点名称查询缓存
+    const cachedLocation = locationCache.value.get(activity.location)
 
     if (cachedLocation) {
       locations.push(cachedLocation)
@@ -958,6 +979,60 @@ onUnmounted(() => {
   border-radius: 12px;
 }
 
+/* 步骤指示器样式优化 */
+.steps :deep(.el-step__icon) {
+  width: 40px;
+  height: 40px;
+  font-size: 18px;
+}
+
+.steps :deep(.el-step__icon.is-text) {
+  border: 2px solid #e0e0e0;
+  background-color: #fff;
+  color: #909399;
+}
+
+.steps :deep(.el-step__title) {
+  font-size: 15px;
+  font-weight: 500;
+  color: #606266;
+}
+
+.steps :deep(.el-step__title.is-process) {
+  font-weight: 600;
+  color: #409eff;
+}
+
+.steps :deep(.el-step__title.is-finish) {
+  color: #67c23a;
+}
+
+.steps :deep(.el-step__icon.is-icon) {
+  background-color: #409eff;
+  color: #fff;
+  border: none;
+}
+
+.steps :deep(.el-step__line) {
+  background-color: #e0e0e0;
+}
+
+.steps :deep(.el-step.is-process .el-step__icon) {
+  background-color: #409eff;
+  border-color: #409eff;
+  color: #fff;
+}
+
+.steps :deep(.el-step.is-finish .el-step__icon) {
+  background-color: #67c23a;
+  border-color: #67c23a;
+  color: #fff;
+}
+
+.steps :deep(.el-step.is-finish .el-step__line) {
+  background-color: #67c23a;
+}
+
 .step-content {
   animation: fadeIn 0.3s ease-in;
 }
@@ -976,6 +1051,36 @@ onUnmounted(() => {
 /* 输入卡片 */
 .input-card {
   border-radius: 16px;
+}
+
+/* 成功卡片 */
+.success-card {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  padding: 40px 20px;
+}
+
+.success-card :deep(.el-result__icon svg) {
+  width: 80px;
+  height: 80px;
+}
+
+.success-card :deep(.el-result__title) {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-top: 24px;
+}
+
+.success-card :deep(.el-result__subtitle) {
+  font-size: 16px;
+  color: #6b7280;
+  margin-top: 12px;
+}
+
+.success-card :deep(.el-result__extra) {
+  margin-top: 32px;
 }
 
 .card-header h2 {

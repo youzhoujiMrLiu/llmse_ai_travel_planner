@@ -8,6 +8,16 @@ export interface GeneratePlanRequest {
   budget: number
   travelers: number
   preferences?: string
+  additionalRequirements?: string
+}
+
+export interface ParsedUserInput {
+  destination: string
+  duration: number | null
+  budget: number | null
+  travelers: number | null
+  preferences: string[]
+  additionalRequirements: string
 }
 
 export interface Activity {
@@ -44,6 +54,14 @@ export interface GeneratedPlanResponse {
   dailyPlans: DayPlan[]
   budgetBreakdown: BudgetBreakdown
   tips: string[]
+}
+
+/**
+ * 智能解析用户输入
+ */
+export const parseUserInput = async (userInput: string): Promise<ParsedUserInput> => {
+  const response = await apiClient.post('/ai/parse-input', { userInput })
+  return response.data
 }
 
 /**

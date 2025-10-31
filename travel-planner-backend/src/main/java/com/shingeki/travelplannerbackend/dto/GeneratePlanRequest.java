@@ -29,6 +29,8 @@ public class GeneratePlanRequest {
     private Integer travelers;
 
     private String preferences; // 偏好，例如："美食,动漫,购物"
+    
+    private String additionalRequirements; // 额外要求，例如："预算主要用于美食，住宿标准要高一些"
 
     // Getters and Setters
     public String getUserInput() {
@@ -77,5 +79,13 @@ public class GeneratePlanRequest {
 
     public void setPreferences(String preferences) {
         this.preferences = preferences;
+    }
+    
+    public String getAdditionalRequirements() {
+        return additionalRequirements;
+    }
+    
+    public void setAdditionalRequirements(String additionalRequirements) {
+        this.additionalRequirements = additionalRequirements;
     }
 }

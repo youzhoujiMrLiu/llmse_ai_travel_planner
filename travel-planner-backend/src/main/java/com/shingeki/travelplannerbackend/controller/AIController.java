@@ -27,6 +27,25 @@ public class AIController {
     private SupabaseJwtValidator jwtValidator;
 
     /**
+     * 智能解析用户输入
+     */
+    @PostMapping("/parse-input")
+    public ResponseEntity<Map<String, Object>> parseUserInput(
+            @RequestBody Map<String, String> request,
+            @RequestHeader("Authorization") String authHeader) {
+        
+        // 验证用户身份
+        jwtValidator.validateTokenAndGetUserId(authHeader);
+        
+        String userInput = request.get("userInput");
+        
+        // 调用 AI 服务解析用户输入
+        Map<String, Object> parsedData = aiService.parseUserInput(userInput);
+        
+        return ResponseEntity.ok(parsedData);
+    }
+
+    /**
      * 生成旅行计划
      */
     @PostMapping("/generate-plan")
