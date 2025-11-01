@@ -82,6 +82,50 @@ export class AmapService {
   }
 
   /**
+   * 验证地点是否在中国境内（通过高德 API 是否能返回结果判断）
+   * @param destination 目的地名称
+   * @returns Promise<{ isChina: boolean, error?: string }>
+   */
+  async validateChinaDestination(destination: string): Promise<{ isChina: boolean, error?: string }> {
+    try {
+      console.log(`🌍 验证目的地是否在中国: ${destination}`)
+      
+      const params = new URLSearchParams({
+        address: destination
+      })
+
+      const response = await fetch(`http://localhost:8080/api/map/geocode?${params.toString()}`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      
+      console.log(`地理编码验证响应:`, result)
+
+      // 高德 API 返回 status=1 且有 geocodes 数据,说明是中国境内地点
+      if (result.status === '1' && result.geocodes && result.geocodes.length > 0) {
+        console.log(`✅ "${destination}" 是中国境内地点`)
+        return { isChina: true }
+      } else {
+        console.warn(`❌ "${destination}" 不是中国境内地点或无法定位`)
+        return { 
+          isChina: false, 
+          error: result.info || '高德地图无法定位此地点'
+        }
+      }
+    } catch (error: any) {
+      console.error(`验证目的地异常: ${destination}`, error)
+      // 网络错误等异常情况,保守处理,假定为中国境内(避免误判)
+      return { 
+        isChina: true, 
+        error: '网络异常,无法验证目的地'
+      }
+    }
+  }
+
+  /**
    * 地点搜索 - 通过后端代理调用高德 Web 服务 API（推荐使用，比地理编码更准确）
    * @param keyword 地点名称关键词
    * @param city 限定城市（可选）

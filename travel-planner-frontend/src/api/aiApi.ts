@@ -32,6 +32,8 @@ export interface Activity {
     latitude: number
     longitude: number
   }
+  editing?: boolean  // 编辑状态标记
+  originalData?: Activity  // 编辑前的原始数据备份
 }
 
 export interface DayPlan {
