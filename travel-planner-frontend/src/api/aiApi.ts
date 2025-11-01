@@ -34,6 +34,7 @@ export interface Activity {
   }
   editing?: boolean  // 编辑状态标记
   originalData?: Activity  // 编辑前的原始数据备份
+  isPlaceholder?: boolean  // 是否是占位符状态(用于首次聚焦清空)
 }
 
 export interface DayPlan {

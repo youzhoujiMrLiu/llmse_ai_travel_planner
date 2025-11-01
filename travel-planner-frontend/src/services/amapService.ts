@@ -54,6 +54,16 @@ export class AmapService {
 
     console.log('地图初始化成功')
 
+    // 禁用地图容器的右键菜单
+    const mapContainer = document.getElementById(containerId)
+    if (mapContainer) {
+      mapContainer.addEventListener('contextmenu', (e) => {
+        e.preventDefault()
+        return false
+      })
+      console.log('已禁用地图容器的右键菜单')
+    }
+
     // 初始化地理编码器 - 确保 AMap.Geocoder 已加载
     if (window.AMap.Geocoder) {
       this.geocoder = new AMap.Geocoder({
@@ -278,8 +288,13 @@ export class AmapService {
    * @param location 位置信息
    * @param label 标签文字
    * @param icon 图标配置
+   * @param options 可选配置 { onClick, onRightClick, customData }
    */
-  addMarker(location: Location, label?: string, icon?: any) {
+  addMarker(location: Location, label?: string, icon?: any, options?: {
+    onClick?: (marker: any) => void
+    onRightClick?: (marker: any) => void
+    customData?: any
+  }) {
     if (!this.map) {
       console.error('地图未初始化')
       return null
@@ -295,26 +310,103 @@ export class AmapService {
           }
         : undefined,
       icon: icon,
+      extData: options?.customData // 存储自定义数据
     })
 
     marker.setMap(this.map)
     this.markers.push(marker)
 
-    // 添加点击事件显示信息窗体
-    const infoWindow = new AMap.InfoWindow({
-      content: `
-        <div style="padding: 10px;">
-          <h4 style="margin: 0 0 8px 0;">${location.name}</h4>
-          <p style="margin: 0; color: #666; font-size: 12px;">${location.address || ''}</p>
-        </div>
-      `,
-    })
+    // 添加左键点击事件
+    if (options?.onClick) {
+      marker.on('click', (e: any) => {
+        // 阻止事件冒泡,避免触发地图点击
+        if (e.originEvent) {
+          e.originEvent.stopPropagation()
+        }
+        options.onClick!(marker)
+      })
+    } else {
+      // 默认显示信息窗体
+      const infoWindow = new AMap.InfoWindow({
+        content: `
+          <div style="padding: 10px;">
+            <h4 style="margin: 0 0 8px 0;">${location.name}</h4>
+            <p style="margin: 0; color: #666; font-size: 12px;">${location.address || ''}</p>
+          </div>
+        `,
+      })
 
-    marker.on('click', () => {
-      infoWindow.open(this.map, [location.lng, location.lat])
-    })
+      marker.on('click', () => {
+        infoWindow.open(this.map, [location.lng, location.lat])
+      })
+    }
+
+    // 添加右键点击事件
+    if (options?.onRightClick) {
+      marker.on('rightclick', (e: any) => {
+        // 阻止浏览器默认右键菜单
+        if (e.originEvent) {
+          e.originEvent.preventDefault()
+          e.originEvent.stopPropagation()
+        }
+        options.onRightClick!(marker)
+      })
+    }
 
     return marker
+  }
+
+  /**
+   * 添加地图点击事件监听
+   * @param callback 点击回调函数，参数为点击位置的经纬度和地址信息
+   */
+  onMapClick(callback: (location: { lng: number; lat: number; address?: string }) => void) {
+    if (!this.map) {
+      console.error('地图未初始化')
+      return
+    }
+
+    this.map.on('click', async (e: any) => {
+      const lngLat = e.lnglat
+      console.log('地图点击位置:', lngLat.lng, lngLat.lat)
+      
+      // 逆地理编码获取地址
+      try {
+        const geocoder = new AMap.Geocoder({
+          radius: 1000
+        })
+        
+        geocoder.getAddress([lngLat.lng, lngLat.lat], (status: string, result: any) => {
+          if (status === 'complete' && result.info === 'OK') {
+            const address = result.regeocode.formattedAddress
+            callback({
+              lng: lngLat.lng,
+              lat: lngLat.lat,
+              address: address
+            })
+          } else {
+            callback({
+              lng: lngLat.lng,
+              lat: lngLat.lat
+            })
+          }
+        })
+      } catch (error) {
+        console.error('逆地理编码失败:', error)
+        callback({
+          lng: lngLat.lng,
+          lat: lngLat.lat
+        })
+      }
+    })
+  }
+
+  /**
+   * 移除地图点击事件监听
+   */
+  offMapClick() {
+    if (!this.map) return
+    this.map.off('click')
   }
 
   /**
@@ -421,6 +513,44 @@ export class AmapService {
     if (this.map && this.markers.length > 0) {
       this.map.setFitView(this.markers)
     }
+  }
+
+  /**
+   * 禁用地图交互(拖拽、缩放等)
+   */
+  disableMapInteraction() {
+    if (!this.map) return
+    
+    // 禁用地图拖拽
+    this.map.setStatus({
+      dragEnable: false,
+      zoomEnable: false,
+      doubleClickZoom: false,
+      scrollWheel: false,
+      touchZoom: false,
+      touchZoomCenter: false
+    })
+    
+    console.log('地图交互已禁用')
+  }
+
+  /**
+   * 启用地图交互(拖拽、缩放等)
+   */
+  enableMapInteraction() {
+    if (!this.map) return
+    
+    // 启用地图拖拽
+    this.map.setStatus({
+      dragEnable: true,
+      zoomEnable: true,
+      doubleClickZoom: true,
+      scrollWheel: true,
+      touchZoom: true,
+      touchZoomCenter: true
+    })
+    
+    console.log('地图交互已启用')
   }
 
   /**

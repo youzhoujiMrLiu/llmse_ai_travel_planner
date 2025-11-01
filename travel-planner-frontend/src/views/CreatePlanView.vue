@@ -313,7 +313,19 @@
                 </el-alert>
 
                 <!-- 地图容器 -->
-                <div id="amap-container" class="amap-container"></div>
+                <div class="map-wrapper">
+                  <div id="amap-container" class="amap-container"></div>
+                  <!-- 地图加载遮罩 -->
+                  <div v-if="mapLoadingStatus === 'loading'" class="map-loading-overlay">
+                    <div class="map-loading-content">
+                      <el-icon class="is-loading" :size="40">
+                        <Loading />
+                      </el-icon>
+                      <div class="loading-text">正在加载地图...</div>
+                      <div class="loading-subtext">{{ geocodedCount }}/{{ totalPlaces }} 个地点已定位</div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <!-- 每日行程 -->
@@ -331,19 +343,44 @@
                         v-for="(activity, index) in dayPlan.activities"
                         :key="index"
                         class="activity-item"
+                        draggable="true"
+                        @dragstart="handleDragStart(dayPlan.day, index, $event)"
+                        @dragover="handleDragOver($event)"
+                        @drop="handleDrop(dayPlan.day, index, $event)"
+                        @dragend="handleDragEnd"
                       >
-                        <!-- 查看模式 -->
-                        <div v-if="!activity.editing" class="activity-view">
+                        <div class="activity-view">
                           <div class="activity-header">
-                            <el-tag :type="getActivityTypeTag(activity.type)">
-                              {{ getActivityTypeText(activity.type) }}
-                            </el-tag>
-                            <span class="activity-time">{{ activity.time }}</span>
+                            <div class="activity-header-left">
+                              <el-icon class="drag-handle" title="拖动排序">
+                                <Rank />
+                              </el-icon>
+                              <el-tag :type="getActivityTypeTag(activity.type)">
+                                {{ getActivityTypeText(activity.type) }}
+                              </el-tag>
+                              <span class="activity-time">{{ activity.time }}</span>
+                            </div>
                             <div class="activity-actions">
                               <el-button 
                                 size="small" 
                                 text 
-                                @click="startEditActivity(dayPlan.day, index)"
+                                @click="moveActivity(dayPlan.day, index, 'up')"
+                                :icon="ArrowUp"
+                                :disabled="index === 0"
+                                title="上移"
+                              />
+                              <el-button 
+                                size="small" 
+                                text 
+                                @click="moveActivity(dayPlan.day, index, 'down')"
+                                :icon="ArrowDown"
+                                :disabled="index === dayPlan.activities.length - 1"
+                                title="下移"
+                              />
+                              <el-button 
+                                size="small" 
+                                text 
+                                @click="openEditActivityDialog(dayPlan.day, index)"
                                 :icon="Edit"
                               >
                                 编辑
@@ -373,96 +410,13 @@
                             </span>
                           </div>
                         </div>
-
-                        <!-- 编辑模式 -->
-                        <div v-else class="activity-edit">
-                          <el-form :model="activity" label-position="top" size="small">
-                            <el-row :gutter="12">
-                              <el-col :span="8">
-                                <el-form-item label="活动类型">
-                                  <el-select v-model="activity.type" style="width: 100%">
-                                    <el-option label="交通" value="transport" />
-                                    <el-option label="景点" value="attraction" />
-                                    <el-option label="餐饮" value="restaurant" />
-                                    <el-option label="住宿" value="accommodation" />
-                                  </el-select>
-                                </el-form-item>
-                              </el-col>
-                              <el-col :span="8">
-                                <el-form-item label="时间">
-                                  <el-input v-model="activity.time" placeholder="09:00-12:00" />
-                                </el-form-item>
-                              </el-col>
-                              <el-col :span="8">
-                                <el-form-item label="预估费用(元)">
-                                  <el-input-number 
-                                    v-model="activity.estimatedCost" 
-                                    :min="0" 
-                                    :step="10"
-                                    style="width: 100%"
-                                  />
-                                </el-form-item>
-                              </el-col>
-                            </el-row>
-                            
-                            <el-form-item label="活动标题">
-                              <el-input v-model="activity.title" placeholder="活动名称" />
-                            </el-form-item>
-                            
-                            <el-form-item label="活动描述">
-                              <el-input 
-                                v-model="activity.description" 
-                                type="textarea" 
-                                :rows="2"
-                                placeholder="详细描述"
-                              />
-                            </el-form-item>
-                            
-                            <el-form-item label="地点">
-                              <el-autocomplete
-                                v-model="activity.location"
-                                :fetch-suggestions="(queryString: string, cb: any) => searchLocation(queryString, cb)"
-                                placeholder="输入地点名称搜索"
-                                style="width: 100%"
-                                @select="(item: any) => handleLocationSelect(dayPlan.day, index, item)"
-                              >
-                                <template #default="{ item }">
-                                  <div class="search-item">
-                                    <div class="search-name">{{ item.value }}</div>
-                                    <div class="search-address">{{ item.address }}</div>
-                                  </div>
-                                </template>
-                              </el-autocomplete>
-                              <div v-if="activity.address" class="current-address">
-                                <el-icon><Location /></el-icon>
-                                <span>{{ activity.address }}</span>
-                              </div>
-                            </el-form-item>
-                            
-                            <el-form-item>
-                              <el-button 
-                                type="primary" 
-                                size="small"
-                                @click="saveActivity(dayPlan.day, index)"
-                              >
-                                保存
-                              </el-button>
-                              <el-button 
-                                size="small"
-                                @click="cancelEditActivity(dayPlan.day, index)"
-                              >
-                                取消
-                              </el-button>
-                            </el-form-item>
-                          </el-form>
-                        </div>
                       </div>
                       
                       <!-- 添加新活动按钮 -->
                       <div class="add-activity">
                         <el-button 
                           text 
-                          @click="addNewActivity(dayPlan.day)"
+                          @click="openAddActivityDialog(dayPlan.day)"
                           :icon="Plus"
                         >
                           添加活动
@@ -498,6 +452,87 @@
               </div>
             </el-card>
           </div>
+
+          <!-- 添加/编辑活动对话框 -->
+          <el-dialog
+            v-model="activityDialogVisible"
+            :title="activityDialogMode === 'add' ? '添加活动' : '编辑活动'"
+            width="600px"
+            :close-on-click-modal="false"
+          >
+            <el-form
+              ref="activityFormRef"
+              :model="activityForm"
+              :rules="activityFormRules"
+              label-position="top"
+            >
+              <el-row :gutter="16">
+                <el-col :span="12">
+                  <el-form-item label="活动类型" prop="type">
+                    <el-select v-model="activityForm.type" style="width: 100%">
+                      <el-option label="交通" value="transport" />
+                      <el-option label="景点" value="attraction" />
+                      <el-option label="餐饮" value="restaurant" />
+                      <el-option label="住宿" value="accommodation" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="时间" prop="time">
+                    <el-input v-model="activityForm.time" placeholder="09:00-12:00" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+
+              <el-form-item label="活动标题" prop="title">
+                <el-input v-model="activityForm.title" placeholder="请输入活动名称" />
+              </el-form-item>
+
+              <el-form-item label="活动描述" prop="description">
+                <el-input
+                  v-model="activityForm.description"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="请输入活动描述"
+                />
+              </el-form-item>
+
+              <el-form-item label="地点" prop="location">
+                <el-autocomplete
+                  v-model="activityForm.location"
+                  :fetch-suggestions="searchLocationForDialog"
+                  placeholder="输入地点名称搜索"
+                  style="width: 100%"
+                  @select="handleDialogLocationSelect"
+                >
+                  <template #default="{ item }">
+                    <div class="search-item">
+                      <div class="search-name">{{ item.value }}</div>
+                      <div class="search-address">{{ item.address }}</div>
+                    </div>
+                  </template>
+                </el-autocomplete>
+                <div v-if="activityForm.address" class="current-address" style="margin-top: 8px">
+                  <el-icon><Location /></el-icon>
+                  <span>{{ activityForm.address }}</span>
+                </div>
+              </el-form-item>
+
+              <el-form-item label="预估费用(元)" prop="estimatedCost">
+                <el-input-number
+                  v-model="activityForm.estimatedCost"
+                  :min="0"
+                  :step="10"
+                  style="width: 100%"
+                />
+              </el-form-item>
+            </el-form>
+
+            <template #footer>
+              <el-button @click="activityDialogVisible = false">取消</el-button>
+              <el-button type="primary" @click="handleActivityDialogConfirm">确定</el-button>
+            </template>
+          </el-dialog>
 
           <!-- 步骤 3: 保存成功 -->
           <div v-if="currentStep === 2" class="step-content">
@@ -538,7 +573,11 @@ import {
   Edit,
   Check,
   Delete,
-  Plus
+  Plus,
+  Rank,
+  ArrowUp,
+  ArrowDown,
+  Loading
 } from '@element-plus/icons-vue'
 import { generateTravelPlan, parseUserInput, type GeneratedPlanResponse, type GeneratePlanRequest, type ParsedUserInput } from '@/api/aiApi'
 import { createTravelPlan } from '@/api/travelPlanApi'
@@ -563,6 +602,24 @@ const unlocatedPlaces = ref<string[]>([]) // 无法定位的地点
 const totalPlaces = ref(0) // 总地点数
 const geocodedCount = ref(0) // 已完成地理编码的地点数
 const locationCache = ref<Map<string, AmapLocation>>(new Map()) // 地点坐标缓存
+
+// 活动对话框相关状态
+const activityDialogVisible = ref(false)
+const activityDialogMode = ref<'add' | 'edit'>('add')
+const activityFormRef = ref<FormInstance>()
+const activityForm = reactive({
+  type: 'attraction' as 'transport' | 'attraction' | 'restaurant' | 'accommodation',
+  time: '',
+  title: '',
+  description: '',
+  location: '',
+  address: '',
+  estimatedCost: 0
+})
+const activityDialogContext = reactive({
+  day: 1,
+  activityIndex: -1
+})
 
 let speechRecognition: WebSpeechRecognition | null = null
 let amapService = getAmapService()
@@ -613,6 +670,14 @@ const rules = reactive<FormRules>({
     { required: true, message: '请输入同行人数', trigger: 'change' }
   ]
 })
+
+// 活动表单验证规则
+const activityFormRules: FormRules = {
+  type: [{ required: true, message: '请选择活动类型', trigger: 'change' }],
+  time: [{ required: true, message: '请输入活动时间', trigger: 'blur' }],
+  title: [{ required: true, message: '请输入活动标题', trigger: 'blur' }],
+  location: [{ required: true, message: '请输入活动地点', trigger: 'blur' }]
+}
 
 // 返回上一页
 const goBack = () => {
@@ -777,89 +842,164 @@ const handleGeneratePlan = async () => {
   })
 }
 
-// ==================== 活动编辑相关函数 ====================
+// ==================== 活动对话框相关函数 ====================
 
 /**
- * 开始编辑活动
+ * 打开添加活动对话框
  */
-const startEditActivity = (day: number, activityIndex: number) => {
-  if (!generatedPlan.value) return
-
-  const dayPlan = generatedPlan.value.dailyPlans.find(d => d.day === day)
-  if (!dayPlan) return
-
-  const activity = dayPlan.activities[activityIndex]
-  if (!activity) return
+const openAddActivityDialog = (day: number) => {
+  activityDialogMode.value = 'add'
+  activityDialogContext.day = day
+  activityDialogContext.activityIndex = -1
   
-  // 保存原始数据用于取消时恢复
-  activity.originalData = JSON.parse(JSON.stringify(activity)) as typeof activity
-  activity.editing = true
+  // 重置表单
+  Object.assign(activityForm, {
+    type: 'attraction',
+    time: '00:00-00:00',
+    title: '',
+    description: '',
+    location: '',
+    address: '',
+    estimatedCost: 0
+  })
+  
+  activityDialogVisible.value = true
 }
 
 /**
- * 取消编辑活动
+ * 打开编辑活动对话框
  */
-const cancelEditActivity = (day: number, activityIndex: number) => {
+const openEditActivityDialog = (day: number, activityIndex: number) => {
   if (!generatedPlan.value) return
-
+  
   const dayPlan = generatedPlan.value.dailyPlans.find(d => d.day === day)
   if (!dayPlan) return
-
+  
   const activity = dayPlan.activities[activityIndex]
   if (!activity) return
   
-  // 恢复原始数据
-  if (activity.originalData) {
-    const keys = Object.keys(activity.originalData) as Array<keyof typeof activity.originalData>
-    keys.forEach(key => {
-      if (key !== 'editing' && key !== 'originalData') {
-        (activity as any)[key] = activity.originalData![key]
-      }
-    })
-    delete activity.originalData
+  activityDialogMode.value = 'edit'
+  activityDialogContext.day = day
+  activityDialogContext.activityIndex = activityIndex
+  
+  // 填充表单
+  Object.assign(activityForm, {
+    type: activity.type,
+    time: activity.time,
+    title: activity.title,
+    description: activity.description,
+    location: activity.location,
+    address: activity.address || '',
+    estimatedCost: activity.estimatedCost
+  })
+  
+  activityDialogVisible.value = true
+}
+
+/**
+ * 对话框中的地点搜索
+ */
+const searchLocationForDialog = async (queryString: string, callback: (suggestions: any[]) => void) => {
+  if (!queryString || queryString.length < 2) {
+    callback([])
+    return
   }
-  activity.editing = false
-}
 
-/**
- * 保存活动编辑
- */
-const saveActivity = async (day: number, activityIndex: number) => {
-  if (!generatedPlan.value) return
-
-  const dayPlan = generatedPlan.value.dailyPlans.find(d => d.day === day)
-  if (!dayPlan) return
-
-  const activity = dayPlan.activities[activityIndex]
-  if (!activity) return
-  
-  // 判断是否是新增的活动（没有 originalData 表示是新增）
-  const isNewActivity = !activity.originalData
-  
-  // 判断地点是否改变
-  const locationChanged = !isNewActivity && activity.location !== activity.originalData!.location
-  
-  // 如果地点改变了或者是新增活动，需要获取/更新地理位置
-  if ((locationChanged || isNewActivity) && activity.location) {
-    const result = await amapService.searchPlace(activity.location, form.destination)
+  try {
+    const result = await amapService.searchPlace(queryString, form.destination)
+    
     if (result.success && result.location) {
-      activity.address = result.location.address || result.location.name
-      // 更新缓存
-      locationCache.value.set(activity.location, result.location)
-      console.log(`📍 ${isNewActivity ? '新增' : '更新'}地址: ${activity.location} -> ${activity.address}`)
-      
-      // 重新绘制地图
-      await displayDayRoute(day)
+      callback([{
+        value: result.location.name,
+        address: result.location.address || '',
+        location: {
+          lng: result.location.lng,
+          lat: result.location.lat
+        }
+      }])
     } else {
-      ElMessage.warning(`未找到地点"${activity.location}"的位置信息`)
+      callback([])
     }
+  } catch (error) {
+    console.error('地点搜索失败:', error)
+    callback([])
   }
-  
-  delete activity.originalData
-  activity.editing = false
-  
-  ElMessage.success(isNewActivity ? '活动已添加' : '活动已更新')
 }
+
+/**
+ * 对话框中选择地点
+ */
+const handleDialogLocationSelect = (item: any) => {
+  activityForm.location = item.value
+  activityForm.address = item.address
+  
+  // 更新缓存
+  if (item.location) {
+    locationCache.value.set(item.value, {
+      name: item.value,
+      address: item.address,
+      lng: item.location.lng,
+      lat: item.location.lat
+    })
+  }
+}
+
+/**
+ * 确认对话框(添加或编辑活动)
+ */
+const handleActivityDialogConfirm = async () => {
+  if (!activityFormRef.value) return
+  
+  await activityFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    
+    if (!generatedPlan.value) return
+    
+    const day = activityDialogContext.day
+    const dayPlan = generatedPlan.value.dailyPlans.find(d => d.day === day)
+    if (!dayPlan) return
+    
+    if (activityDialogMode.value === 'add') {
+      // 添加新活动
+      const newActivity = {
+        type: activityForm.type,
+        time: activityForm.time,
+        title: activityForm.title,
+        description: activityForm.description,
+        location: activityForm.location,
+        address: activityForm.address,
+        estimatedCost: activityForm.estimatedCost,
+        editing: false
+      }
+      
+      dayPlan.activities.push(newActivity)
+      ElMessage.success('活动已添加')
+    } else {
+      // 编辑活动
+      const activity = dayPlan.activities[activityDialogContext.activityIndex]
+      if (activity) {
+        Object.assign(activity, {
+          type: activityForm.type,
+          time: activityForm.time,
+          title: activityForm.title,
+          description: activityForm.description,
+          location: activityForm.location,
+          address: activityForm.address,
+          estimatedCost: activityForm.estimatedCost
+        })
+        ElMessage.success('活动已更新')
+      }
+    }
+    
+    // 重新绘制地图
+    await displayDayRoute(day)
+    
+    // 关闭对话框
+    activityDialogVisible.value = false
+  })
+}
+
+// ==================== 结束活动对话框相关函数 ====================
 
 /**
  * 删除活动
@@ -891,58 +1031,6 @@ const deleteActivity = (day: number, activityIndex: number) => {
 }
 
 /**
- * 添加新活动
- */
-const addNewActivity = async (day: number) => {
-  if (!generatedPlan.value) return
-
-  const dayPlan = generatedPlan.value.dailyPlans.find(d => d.day === day)
-  if (!dayPlan) return
-
-  const newActivity: typeof dayPlan.activities[0] = {
-    time: '00:00-00:00',
-    type: 'attraction',
-    title: '新活动',
-    description: '请填写活动描述',
-    location: '',
-    estimatedCost: 0,
-    editing: true
-  }
-
-  const insertIndex = dayPlan.activities.length
-  dayPlan.activities.push(newActivity)
-  
-  // 等待 DOM 更新后滚动到新活动
-  await nextTick()
-  
-  // 使用更精确的选择器：找到对应天数的卡片，然后找到该卡片中的最后一个 activity-item
-  const dayCards = document.querySelectorAll('.day-card')
-  const dayIndex = generatedPlan.value.dailyPlans.findIndex(d => d.day === day)
-  
-  if (dayCards[dayIndex]) {
-    const activityItems = dayCards[dayIndex].querySelectorAll('.activity-item')
-    const newActivityElement = activityItems[insertIndex]
-    
-    if (newActivityElement) {
-      // 使用 scrollIntoView 并确保滚动到视图中心
-      newActivityElement.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center',
-        inline: 'nearest'
-      })
-      
-      // 聚焦到第一个输入框
-      setTimeout(() => {
-        const firstInput = newActivityElement.querySelector('input')
-        if (firstInput) {
-          firstInput.focus()
-        }
-      }, 300)
-    }
-  }
-}
-
-/**
  * 地点搜索建议
  */
 interface LocationSuggestion {
@@ -954,60 +1042,156 @@ interface LocationSuggestion {
   }
 }
 
-const searchLocation = async (queryString: string, callback: (suggestions: LocationSuggestion[]) => void) => {
-  if (!queryString || queryString.length < 2) {
-    callback([])
-    return
-  }
-
-  try {
-    const result = await amapService.searchPlace(queryString, form.destination)
-    
-    if (result.success && result.location) {
-      callback([{
-        value: result.location.name,
-        address: result.location.address || '',
-        location: {
-          lng: result.location.lng,
-          lat: result.location.lat
-        }
-      }])
-    } else {
-      callback([])
+/**
+ * 处理地图标记点击
+ */
+const handleMarkerClick = (day: number, activityIndex: number, activity: any) => {
+  const activityType = getActivityTypeText(activity.type)
+  
+  // 禁用地图交互
+  amapService.disableMapInteraction()
+  
+  ElMessageBox.confirm(
+    `<div style="padding: 8px;">
+      <div style="margin-bottom: 16px;">
+        <div style="font-size: 16px; font-weight: 600; color: #1f2937; margin-bottom: 8px;">
+          ${activity.title}
+        </div>
+        <div style="display: inline-block; padding: 2px 8px; background: #eff6ff; color: #3b82f6; border-radius: 4px; font-size: 12px; margin-bottom: 8px;">
+          ${activityType}
+        </div>
+      </div>
+      <div style="color: #6b7280; font-size: 14px; line-height: 1.8;">
+        <div style="margin-bottom: 6px;">
+          <span style="color: #3b82f6;">📍</span> ${activity.address || activity.location}
+        </div>
+        <div style="margin-bottom: 6px;">
+          <span style="color: #f59e0b;">⏰</span> ${activity.time}
+        </div>
+        <div>
+          <span style="color: #10b981;">💰</span> 预估费用: ¥${activity.estimatedCost}
+        </div>
+      </div>
+    </div>`,
+    '活动详情',
+    {
+      confirmButtonText: '删除此活动',
+      cancelButtonText: '关闭',
+      type: 'warning',
+      dangerouslyUseHTMLString: true,
+      distinguishCancelAndClose: true,
+      center: false,
+      lockScroll: false
     }
-  } catch (error) {
-    console.error('地点搜索失败:', error)
-    callback([])
-  }
+  ).then(async () => {
+    // 用户点击"删除此活动"
+    deleteActivity(day, activityIndex)
+  }).catch(() => {
+    // 用户点击"关闭"或关闭对话框
+  }).finally(() => {
+    // 无论如何都要恢复地图交互
+    amapService.enableMapInteraction()
+  })
 }
 
+// ==================== 活动排序相关函数 ====================
+
 /**
- * 选择地点
+ * 移动活动(上移/下移)
  */
-const handleLocationSelect = (day: number, activityIndex: number, item: LocationSuggestion) => {
+const moveActivity = async (day: number, activityIndex: number, direction: 'up' | 'down') => {
   if (!generatedPlan.value) return
 
   const dayPlan = generatedPlan.value.dailyPlans.find(d => d.day === day)
   if (!dayPlan) return
 
-  const activity = dayPlan.activities[activityIndex]
-  if (!activity) return
+  const targetIndex = direction === 'up' ? activityIndex - 1 : activityIndex + 1
   
-  activity.location = item.value
-  activity.address = item.address
+  // 边界检查
+  if (targetIndex < 0 || targetIndex >= dayPlan.activities.length) return
+
+  // 交换活动位置
+  const activities = dayPlan.activities
+  const temp = activities[activityIndex]!
+  activities[activityIndex] = activities[targetIndex]!
+  activities[targetIndex] = temp
+
+  // 重新绘制地图
+  await displayDayRoute(day)
   
-  // 更新缓存
-  if (item.location) {
-    locationCache.value.set(item.value, {
-      name: item.value,
-      address: item.address,
-      lng: item.location.lng,
-      lat: item.location.lat
-    })
+  ElMessage.success(direction === 'up' ? '已上移' : '已下移')
+}
+
+/**
+ * 拖拽相关状态
+ */
+const dragState = ref<{
+  day: number
+  fromIndex: number
+} | null>(null)
+
+/**
+ * 拖拽开始
+ */
+const handleDragStart = (day: number, index: number, event: DragEvent) => {
+  dragState.value = { day, fromIndex: index }
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(index))
+  }
+  // 添加拖拽样式
+  const target = event.target as HTMLElement
+  target.style.opacity = '0.5'
+}
+
+/**
+ * 拖拽经过
+ */
+const handleDragOver = (event: DragEvent) => {
+  event.preventDefault()
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
   }
 }
 
-// ==================== 结束编辑相关函数 ====================
+/**
+ * 放置
+ */
+const handleDrop = async (day: number, toIndex: number, event: DragEvent) => {
+  event.preventDefault()
+  
+  if (!dragState.value || !generatedPlan.value) return
+  if (dragState.value.day !== day) return // 只允许同一天内拖拽
+  
+  const fromIndex = dragState.value.fromIndex
+  if (fromIndex === toIndex) return
+
+  const dayPlan = generatedPlan.value.dailyPlans.find(d => d.day === day)
+  if (!dayPlan) return
+
+  // 重新排序活动
+  const [movedActivity] = dayPlan.activities.splice(fromIndex, 1)
+  if (movedActivity) {
+    dayPlan.activities.splice(toIndex, 0, movedActivity)
+  }
+
+  // 重新绘制地图
+  await displayDayRoute(day)
+  
+  ElMessage.success('活动已调整顺序')
+}
+
+/**
+ * 拖拽结束
+ */
+const handleDragEnd = (event: DragEvent) => {
+  // 恢复样式
+  const target = event.target as HTMLElement
+  target.style.opacity = '1'
+  dragState.value = null
+}
+
+// ==================== 结束排序相关函数 ====================
 
 // 保存计划
 const handleSavePlan = async () => {
@@ -1145,6 +1329,9 @@ const initializeMap = async () => {
     selectedDay.value = 1
     await displayDayRoute(1)
 
+    // 启用地图点击添加活动功能
+    enableMapClickToAdd()
+
     mapLoadingStatus.value = 'success'
     console.log('地图初始化和路线显示完成')
   } catch (error: any) {
@@ -1232,7 +1419,7 @@ const displayDayRoute = async (day: number) => {
   let markerIndex = 1
 
   // 添加标记点
-  dayPlan.activities.forEach((activity) => {
+  dayPlan.activities.forEach((activity, activityIndex) => {
     if (!activity.location) return
 
     // 直接使用原始地点名称查询缓存
@@ -1255,7 +1442,18 @@ const displayDayRoute = async (day: number) => {
         new window.AMap.Icon({
           size: new window.AMap.Size(32, 32),
           image: `https://webapi.amap.com/theme/v1.3/markers/n/mark_b${markerIndex}.png`,
-        })
+        }),
+        {
+          // 左键点击标记弹出操作菜单
+          onClick: () => {
+            handleMarkerClick(day, activityIndex, activity)
+          },
+          customData: {
+            day,
+            activityIndex,
+            activity
+          }
+        }
       )
 
       markerIndex++
@@ -1277,6 +1475,66 @@ const displayDayRoute = async (day: number) => {
 const switchMapDay = async (day: number) => {
   selectedDay.value = day
   await displayDayRoute(day)
+}
+
+/**
+ * 启用地图点击添加活动功能
+ */
+const enableMapClickToAdd = () => {
+  amapService.onMapClick(async (clickLocation) => {
+    console.log('地图点击位置:', clickLocation)
+    
+    // 禁用地图交互
+    amapService.disableMapInteraction()
+    
+    // 弹出确认对话框
+    ElMessageBox.prompt('请输入活动名称', '添加活动到当前天', {
+      confirmButtonText: '添加',
+      cancelButtonText: '取消',
+      inputPlaceholder: '例如：中山陵、夫子庙等',
+      inputPattern: /.+/,
+      inputErrorMessage: '活动名称不能为空'
+    }).then(async ({ value: activityName }) => {
+      if (!generatedPlan.value) return
+      
+      const day = selectedDay.value
+      const dayPlan = generatedPlan.value.dailyPlans.find(d => d.day === day)
+      if (!dayPlan) return
+
+      // 创建新活动
+      const newActivity = {
+        time: '00:00-00:00',
+        type: 'attraction' as const,
+        title: activityName,
+        description: '通过地图点击添加',
+        location: activityName,
+        address: clickLocation.address || '地图点击位置',
+        estimatedCost: 0,
+        editing: false
+      }
+
+      // 添加到当前天
+      dayPlan.activities.push(newActivity)
+      
+      // 更新位置缓存
+      locationCache.value.set(activityName, {
+        name: activityName,
+        address: clickLocation.address || '地图点击位置',
+        lng: clickLocation.lng,
+        lat: clickLocation.lat
+      })
+
+      // 重新绘制地图
+      await displayDayRoute(day)
+      
+      ElMessage.success(`已添加 "${activityName}" 到第 ${day} 天`)
+    }).catch(() => {
+      // 用户取消
+    }).finally(() => {
+      // 无论如何都要恢复地图交互
+      amapService.enableMapInteraction()
+    })
+  })
 }
 
 // 监听生成的计划变化
@@ -1613,12 +1871,57 @@ onUnmounted(() => {
   color: #1f2937;
 }
 
+.map-wrapper {
+  position: relative;
+  width: 100%;
+}
+
 .amap-container {
   width: 100%;
   height: 500px;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 地图加载遮罩 */
+.map-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  border-radius: 12px;
+  pointer-events: all; /* 阻止鼠标事件穿透 */
+  cursor: not-allowed;
+}
+
+.map-loading-content {
+  text-align: center;
+  padding: 32px;
+}
+
+.map-loading-content .el-icon {
+  color: #667eea;
+  margin-bottom: 16px;
+}
+
+.loading-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
+}
+
+.loading-subtext {
+  font-size: 14px;
+  color: #6b7280;
 }
 
 /* 每日行程 */
@@ -1639,6 +1942,13 @@ onUnmounted(() => {
 .activity-item {
   padding: 16px 0;
   border-bottom: 1px solid #e5e7eb;
+  cursor: move; /* 拖拽光标 */
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.activity-item:hover {
+  background-color: #f9fafb;
+  transform: translateX(4px);
 }
 
 .activity-item:last-child {
@@ -1656,6 +1966,29 @@ onUnmounted(() => {
   align-items: center;
   margin-bottom: 12px;
   gap: 12px;
+}
+
+.activity-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: #9ca3af;
+  font-size: 18px;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.drag-handle:hover {
+  color: #6b7280;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
 }
 
 .activity-actions {
