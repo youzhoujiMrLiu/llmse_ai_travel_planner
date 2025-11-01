@@ -368,7 +368,7 @@ export class AmapService {
 
     this.map.on('click', async (e: any) => {
       const lngLat = e.lnglat
-      console.log('地图点击位置:', lngLat.lng, lngLat.lat)
+      console.log('🗺️ 地图点击位置:', lngLat.lng, lngLat.lat)
       
       // 逆地理编码获取地址
       try {
@@ -379,12 +379,14 @@ export class AmapService {
         geocoder.getAddress([lngLat.lng, lngLat.lat], (status: string, result: any) => {
           if (status === 'complete' && result.info === 'OK') {
             const address = result.regeocode.formattedAddress
+            console.log('✅ 逆地理编码成功:', address)
             callback({
               lng: lngLat.lng,
               lat: lngLat.lat,
               address: address
             })
           } else {
+            console.warn('⚠️ 逆地理编码失败，status:', status, 'info:', result?.info)
             callback({
               lng: lngLat.lng,
               lat: lngLat.lat
@@ -392,7 +394,7 @@ export class AmapService {
           }
         })
       } catch (error) {
-        console.error('逆地理编码失败:', error)
+        console.error('❌ 逆地理编码异常:', error)
         callback({
           lng: lngLat.lng,
           lat: lngLat.lat

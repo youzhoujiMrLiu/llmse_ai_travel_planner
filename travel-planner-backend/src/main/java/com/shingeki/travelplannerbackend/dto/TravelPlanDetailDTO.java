@@ -1,45 +1,37 @@
 package com.shingeki.travelplannerbackend.dto;
 
-import jakarta.validation.constraints.*;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 /**
- * 创建旅行计划请求 DTO
+ * 旅行计划详细信息 DTO (包含AI生成的每日计划)
  */
-public class CreateTravelPlanRequest {
-
-    @NotBlank(message = "目的地不能为空")
+public class TravelPlanDetailDTO {
+    private UUID id;
     private String destination;
-
-    @NotNull(message = "开始日期不能为空")
-    @FutureOrPresent(message = "开始日期不能早于今天")
     private LocalDate startDate;
-
-    @NotNull(message = "结束日期不能为空")
     private LocalDate endDate;
-
-    @NotNull(message = "天数不能为空")
-    @Min(value = 1, message = "天数至少为1天")
     private Integer duration;
-
-    @NotNull(message = "预算不能为空")
-    @DecimalMin(value = "0.0", inclusive = false, message = "预算必须大于0")
     private BigDecimal budget;
-
-    @NotNull(message = "同行人数不能为空")
-    @Min(value = 1, message = "同行人数至少为1人")
     private Integer travelers;
-
     private List<String> preferences;
-
-    private String userInput; // 用户原始输入（语音转文字）
-
-    private String aiGeneratedPlan; // AI生成的详细计划(JSON格式)
+    private String status;
+    private String aiGeneratedPlan; // JSON string containing daily plans and tips
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     // Getters and Setters
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
     public String getDestination() {
         return destination;
     }
@@ -96,12 +88,12 @@ public class CreateTravelPlanRequest {
         this.preferences = preferences;
     }
 
-    public String getUserInput() {
-        return userInput;
+    public String getStatus() {
+        return status;
     }
 
-    public void setUserInput(String userInput) {
-        this.userInput = userInput;
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public String getAiGeneratedPlan() {
@@ -110,5 +102,21 @@ public class CreateTravelPlanRequest {
 
     public void setAiGeneratedPlan(String aiGeneratedPlan) {
         this.aiGeneratedPlan = aiGeneratedPlan;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

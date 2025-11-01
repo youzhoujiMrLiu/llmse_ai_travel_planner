@@ -2,6 +2,7 @@ package com.shingeki.travelplannerbackend.service;
 
 import com.shingeki.travelplannerbackend.dto.CreateTravelPlanRequest;
 import com.shingeki.travelplannerbackend.dto.TravelPlanDTO;
+import com.shingeki.travelplannerbackend.dto.TravelPlanDetailDTO;
 import com.shingeki.travelplannerbackend.entity.TravelPlan;
 import com.shingeki.travelplannerbackend.repository.TravelPlanRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,6 +75,7 @@ public class TravelPlanService {
         }
         
         plan.setUserInput(request.getUserInput());
+        plan.setAiGeneratedPlan(request.getAiGeneratedPlan()); // 保存AI生成的详细计划
         plan.setStatus(determineInitialStatus(request.getStartDate()));
         
         TravelPlan savedPlan = travelPlanRepository.save(plan);
@@ -105,6 +107,11 @@ public class TravelPlanService {
         }
         
         plan.setUserInput(request.getUserInput());
+        
+        // 如果提供了新的AI计划,则更新
+        if (request.getAiGeneratedPlan() != null) {
+            plan.setAiGeneratedPlan(request.getAiGeneratedPlan());
+        }
         
         TravelPlan savedPlan = travelPlanRepository.save(plan);
         updatePlanStatus(savedPlan);
@@ -185,6 +192,21 @@ public class TravelPlanService {
     }
 
     /**
+     * 获取旅行计划详情(包含AI生成的每日计划)
+     */
+    public TravelPlanDetailDTO getTravelPlanDetail(UUID planId, UUID userId) {
+        TravelPlan plan = travelPlanRepository.findById(planId)
+                .orElseThrow(() -> new RuntimeException("计划不存在"));
+        
+        // 验证权限
+        if (!plan.getUserId().equals(userId)) {
+            throw new RuntimeException("无权访问此计划");
+        }
+        
+        return convertToDetailDTO(plan);
+    }
+
+    /**
      * 转换为 DTO
      */
     private TravelPlanDTO convertToDTO(TravelPlan plan) {
@@ -202,6 +224,31 @@ public class TravelPlanService {
         }
         
         dto.setStatus(plan.getStatus());
+        dto.setCreatedAt(plan.getCreatedAt());
+        dto.setUpdatedAt(plan.getUpdatedAt());
+        
+        return dto;
+    }
+
+    /**
+     * 转换为详细 DTO
+     */
+    private TravelPlanDetailDTO convertToDetailDTO(TravelPlan plan) {
+        TravelPlanDetailDTO dto = new TravelPlanDetailDTO();
+        dto.setId(plan.getId());
+        dto.setDestination(plan.getDestination());
+        dto.setStartDate(plan.getStartDate());
+        dto.setEndDate(plan.getEndDate());
+        dto.setDuration(plan.getDuration());
+        dto.setBudget(plan.getBudget());
+        dto.setTravelers(plan.getTravelers());
+        
+        if (plan.getPreferences() != null) {
+            dto.setPreferences(Arrays.asList(plan.getPreferences()));
+        }
+        
+        dto.setStatus(plan.getStatus());
+        dto.setAiGeneratedPlan(plan.getAiGeneratedPlan());
         dto.setCreatedAt(plan.getCreatedAt());
         dto.setUpdatedAt(plan.getUpdatedAt());
         

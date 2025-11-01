@@ -2,6 +2,7 @@ package com.shingeki.travelplannerbackend.controller;
 
 import com.shingeki.travelplannerbackend.dto.CreateTravelPlanRequest;
 import com.shingeki.travelplannerbackend.dto.TravelPlanDTO;
+import com.shingeki.travelplannerbackend.dto.TravelPlanDetailDTO;
 import com.shingeki.travelplannerbackend.security.SupabaseJwtValidator;
 import com.shingeki.travelplannerbackend.service.TravelPlanService;
 import jakarta.validation.Valid;
@@ -41,14 +42,26 @@ public class TravelPlanController {
     }
 
     /**
-     * 根据ID获取旅行计划详情
+     * 根据ID获取旅行计划(简要信息)
      */
     @GetMapping("/{planId}")
-    public ResponseEntity<TravelPlanDTO> getTravelPlanById(
+    public ResponseEntity<TravelPlanDTO> getTravelPlan(
             @PathVariable UUID planId,
             @RequestHeader("Authorization") String authHeader) {
         UUID userId = jwtValidator.validateTokenAndGetUserId(authHeader);
         TravelPlanDTO plan = travelPlanService.getTravelPlanById(planId, userId);
+        return ResponseEntity.ok(plan);
+    }
+
+    /**
+     * 根据ID获取旅行计划详情(包含AI生成的每日计划)
+     */
+    @GetMapping("/{planId}/detail")
+    public ResponseEntity<TravelPlanDetailDTO> getTravelPlanDetail(
+            @PathVariable UUID planId,
+            @RequestHeader("Authorization") String authHeader) {
+        UUID userId = jwtValidator.validateTokenAndGetUserId(authHeader);
+        TravelPlanDetailDTO plan = travelPlanService.getTravelPlanDetail(planId, userId);
         return ResponseEntity.ok(plan);
     }
 

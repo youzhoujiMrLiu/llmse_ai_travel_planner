@@ -24,6 +24,7 @@ export interface CreateTravelPlanRequest {
   travelers: number
   preferences?: string[]
   userInput?: string
+  aiGeneratedPlan?: string
 }
 
 /**
@@ -39,6 +40,14 @@ export const getTravelPlans = async (): Promise<TravelPlan[]> => {
  */
 export const getTravelPlanById = async (planId: string): Promise<TravelPlan> => {
   const response = await apiClient.get(`/travel-plans/${planId}`)
+  return response.data
+}
+
+/**
+ * 根据ID获取旅行计划详情(包含每日计划)
+ */
+export const getTravelPlanDetail = async (planId: string): Promise<any> => {
+  const response = await apiClient.get(`/travel-plans/${planId}/detail`)
   return response.data
 }
 

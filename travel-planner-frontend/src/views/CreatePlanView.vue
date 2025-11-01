@@ -1206,6 +1206,12 @@ const handleSavePlan = async () => {
     const endDate = new Date(startDate)
     endDate.setDate(endDate.getDate() + form.duration - 1)
 
+    // 准备AI生成的计划数据
+    const aiGeneratedPlan = JSON.stringify({
+      dailyPlans: generatedPlan.value.dailyPlans,
+      tips: generatedPlan.value.tips
+    })
+
     await createTravelPlan({
       destination: form.destination,
       startDate: startDate.toISOString().split('T')[0] || '',
@@ -1214,7 +1220,8 @@ const handleSavePlan = async () => {
       budget: form.budget,
       travelers: form.travelers,
       preferences: form.preferences,
-      userInput: form.userInput
+      userInput: form.userInput,
+      aiGeneratedPlan: aiGeneratedPlan
     })
 
     currentStep.value = 2
@@ -1382,12 +1389,16 @@ const geocodeAllActivities = async () => {
       locationCache.value.set(placeName, result.location)
       console.log(`✅ 地点搜索成功: ${placeName} -> ${result.location.name}`)
       
-      // 更新所有匹配的 activity 的地址信息
+      // 更新所有匹配的 activity 的地址和坐标信息
       generatedPlan.value.dailyPlans.forEach((dayPlan) => {
         dayPlan.activities.forEach((activity) => {
           if (activity.location === placeName) {
             activity.address = result.location!.address || result.location!.name
-            console.log(`📍 更新地址: ${placeName} -> ${activity.address}`)
+            activity.coordinate = {
+              latitude: result.location!.lat,
+              longitude: result.location!.lng
+            }
+            console.log(`📍 更新地址和坐标: ${placeName} -> ${activity.address}`)
           }
         })
       })
@@ -1483,6 +1494,7 @@ const switchMapDay = async (day: number) => {
 const enableMapClickToAdd = () => {
   amapService.onMapClick(async (clickLocation) => {
     console.log('地图点击位置:', clickLocation)
+    console.log('点击地址:', clickLocation.address)
     
     // 禁用地图交互
     amapService.disableMapInteraction()
@@ -1501,14 +1513,41 @@ const enableMapClickToAdd = () => {
       const dayPlan = generatedPlan.value.dailyPlans.find(d => d.day === day)
       if (!dayPlan) return
 
-      // 创建新活动
+      // 确定地址（如果逆地理编码失败，则主动查询）
+      let activityAddress = clickLocation.address
+      
+      if (!activityAddress) {
+        console.log('⏳ 逆地理编码未返回地址，使用searchPlace查询...')
+        try {
+          const result = await amapService.searchPlace(activityName, form.destination)
+          if (result.success && result.location) {
+            activityAddress = result.location.address || result.location.name
+            console.log('✅ searchPlace查询成功:', activityAddress)
+          } else {
+            // 查询失败，使用活动名称
+            activityAddress = activityName
+            console.log('⚠️ searchPlace查询失败，使用活动名称')
+          }
+        } catch (error) {
+          console.error('❌ searchPlace查询异常:', error)
+          activityAddress = activityName
+        }
+      } else {
+        console.log('✅ 使用逆地理编码地址:', activityAddress)
+      }
+
+      // 创建新活动（包含坐标信息和确定的地址）
       const newActivity = {
         time: '00:00-00:00',
         type: 'attraction' as const,
         title: activityName,
         description: '通过地图点击添加',
         location: activityName,
-        address: clickLocation.address || '地图点击位置',
+        address: activityAddress,
+        coordinate: {
+          latitude: clickLocation.lat,
+          longitude: clickLocation.lng
+        },
         estimatedCost: 0,
         editing: false
       }
@@ -1519,10 +1558,12 @@ const enableMapClickToAdd = () => {
       // 更新位置缓存
       locationCache.value.set(activityName, {
         name: activityName,
-        address: clickLocation.address || '地图点击位置',
+        address: newActivity.address,
         lng: clickLocation.lng,
         lat: clickLocation.lat
       })
+
+      console.log('CreatePlanView - 活动已添加，最终地址:', newActivity.address)
 
       // 重新绘制地图
       await displayDayRoute(day)

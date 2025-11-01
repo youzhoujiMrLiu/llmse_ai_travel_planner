@@ -56,10 +56,22 @@
               >
                 <div class="plan-content">
                   <div class="plan-header">
-                    <h3>{{ plan.destination }}</h3>
-                    <el-tag :type="getStatusType(plan.status)">
-                      {{ getStatusText(plan.status) }}
-                    </el-tag>
+                    <div class="plan-title-group">
+                      <h3>{{ plan.destination }}</h3>
+                      <el-tag :type="getStatusType(plan.status)">
+                        {{ getStatusText(plan.status) }}
+                      </el-tag>
+                    </div>
+                    <el-button 
+                      type="danger" 
+                      size="small"
+                      text
+                      circle
+                      @click="handleDeletePlan($event, plan.id)"
+                      title="删除计划"
+                    >
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
                   </div>
                   
                   <div class="plan-details">
@@ -119,11 +131,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { Plus, Calendar, Clock, Money, User, Loading } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Calendar, Clock, Money, User, Loading, Delete } from '@element-plus/icons-vue'
 import { supabase } from '@/lib/supabase'
 import apiClient from '@/api/apiClient'
-import { getTravelPlans, type TravelPlan } from '@/api/travelPlanApi'
+import { getTravelPlans, deleteTravelPlan, type TravelPlan } from '@/api/travelPlanApi'
 
 const router = useRouter()
 const userId = ref<string>('')
@@ -183,9 +195,35 @@ const handleCreatePlan = () => {
 
 // 查看计划详情
 const handleViewPlan = (planId: string) => {
-  ElMessage.info(`查看计划 ${planId} 的详情（功能开发中）`)
-  // TODO: 跳转到计划详情页
-  // router.push(`/plan/${planId}`)
+  router.push(`/plan/${planId}`)
+}
+
+// 删除计划
+const handleDeletePlan = async (event: Event, planId: string) => {
+  event.stopPropagation() // 阻止事件冒泡,避免触发查看计划
+  
+  ElMessageBox.confirm(
+    '确定要删除这个旅行计划吗？删除后将无法恢复。',
+    '删除确认',
+    {
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+      confirmButtonClass: 'el-button--danger'
+    }
+  ).then(async () => {
+    try {
+      await deleteTravelPlan(planId)
+      ElMessage.success('计划已删除')
+      // 重新加载列表
+      await fetchTravelPlans()
+    } catch (error: any) {
+      console.error('删除计划失败:', error)
+      ElMessage.error('删除失败,请重试')
+    }
+  }).catch(() => {
+    // 用户取消
+  })
 }
 
 // 退出登录
@@ -364,8 +402,15 @@ onMounted(async () => {
 .plan-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 16px;
+}
+
+.plan-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
 }
 
 .plan-header h3 {
