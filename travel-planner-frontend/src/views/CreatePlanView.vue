@@ -343,7 +343,9 @@
                         <div class="activity-footer">
                           <span class="activity-location">
                             <el-icon><Location /></el-icon>
-                            {{ activity.location }}
+                            <span v-if="activity.address">{{ activity.address }}</span>
+                            <span v-else-if="geocodedCount < totalPlaces" class="locating">正在定位...</span>
+                            <span v-else class="no-address">{{ activity.location }}</span>
                           </span>
                           <span class="activity-cost">
                             预估: ¥{{ activity.estimatedCost }}
@@ -843,6 +845,16 @@ const geocodeAllActivities = async () => {
       // 使用原始地点名称作为 key
       locationCache.value.set(placeName, result.location)
       console.log(`✅ 地点搜索成功: ${placeName} -> ${result.location.name}`)
+      
+      // 更新所有匹配的 activity 的地址信息
+      generatedPlan.value.dailyPlans.forEach((dayPlan) => {
+        dayPlan.activities.forEach((activity) => {
+          if (activity.location === placeName) {
+            activity.address = result.location!.address || result.location!.name
+            console.log(`📍 更新地址: ${placeName} -> ${activity.address}`)
+          }
+        })
+      })
     } else {
       unlocatedPlaces.value.push(placeName)
       console.warn(`❌ 地点搜索失败: ${placeName}`)
@@ -1321,6 +1333,27 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   color: #6b7280;
+  max-width: 60%;
+  overflow: hidden;
+}
+
+.activity-location .locating {
+  color: #f59e0b;
+  font-style: italic;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.activity-location .no-address {
+  color: #9ca3af;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .activity-cost {

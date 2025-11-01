@@ -26,6 +26,7 @@ export interface Activity {
   title: string
   description: string
   location: string
+  address?: string  // 地点的详细地址
   estimatedCost: number
   coordinate?: {
     latitude: number
