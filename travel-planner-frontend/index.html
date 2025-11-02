@@ -5,13 +5,9 @@
     <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 旅行规划助手</title>
-    <!-- 高德地图 JS API -->
-    <script type="text/javascript">
-      window._AMapSecurityConfig = {
-        securityJsCode: 'your_security_code_here', // 如果需要安全密钥，请在高德控制台获取
-      }
-    </script>
-    <script src="https://webapi.amap.com/maps?v=2.0&key=45492f44d1f375ac2dcaf78b7492d034&plugin=AMap.Geocoder,AMap.Driving,AMap.PlaceSearch"></script>
+    <!-- 高德地图 JS API - 从环境变量加载 -->
+    <!-- 注意: key 参数会在构建时被 Vite 替换为环境变量 VITE_AMAP_WEB_KEY 的值 -->
+    <script src="https://webapi.amap.com/maps?v=2.0&key=%VITE_AMAP_WEB_KEY%&plugin=AMap.Geocoder,AMap.Driving,AMap.PlaceSearch"></script>
   </head>
   <body>
     <div id="app"></div>

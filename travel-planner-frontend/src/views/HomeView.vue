@@ -58,9 +58,6 @@
                   <div class="plan-header">
                     <div class="plan-title-group">
                       <h3>{{ plan.destination }}</h3>
-                      <el-tag :type="getStatusType(plan.status)">
-                        {{ getStatusText(plan.status) }}
-                      </el-tag>
                     </div>
                     <el-button 
                       type="danger" 
@@ -75,10 +72,7 @@
                   </div>
                   
                   <div class="plan-details">
-                    <div class="detail-item">
-                      <el-icon><Calendar /></el-icon>
-                      <span>{{ plan.startDate }} ~ {{ plan.endDate }}</span>
-                    </div>
+                    <!-- 已移除：不再显示计划日期 -->
                     <div class="detail-item">
                       <el-icon><Clock /></el-icon>
                       <span>{{ plan.duration }}天</span>
@@ -132,7 +126,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Calendar, Clock, Money, User, Loading, Delete } from '@element-plus/icons-vue'
+import { Plus, Clock, Money, User, Loading, Delete } from '@element-plus/icons-vue'
 import { supabase } from '@/lib/supabase'
 import apiClient from '@/api/apiClient'
 import { getTravelPlans, deleteTravelPlan, type TravelPlan } from '@/api/travelPlanApi'
@@ -237,25 +231,6 @@ const handleLogout = async () => {
   }
 }
 
-// 获取状态类型
-const getStatusType = (status: string) => {
-  const types: Record<string, any> = {
-    planning: 'warning',
-    ongoing: 'success',
-    completed: 'info'
-  }
-  return types[status] || 'info'
-}
-
-// 获取状态文本
-const getStatusText = (status: string) => {
-  const texts: Record<string, string> = {
-    planning: '规划中',
-    ongoing: '进行中',
-    completed: '已完成'
-  }
-  return texts[status] || '未知'
-}
 
 onMounted(async () => {
   await fetchUserProfile()

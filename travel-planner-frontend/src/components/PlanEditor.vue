@@ -516,6 +516,12 @@ const displayDayRoute = async (day: number) => {
   const dayPlan = props.plan.dailyPlans.find((d: any) => d.day === day)
   if (!dayPlan) return
 
+  // 检查地图是否已初始化（如果目的地在国外，地图不会被初始化）
+  if (!window.AMap || !amapService) {
+    console.log('地图未初始化，跳过路线显示')
+    return
+  }
+
   amapService.clearAll()
   
   console.log(`🗺️ 显示第 ${day} 天的路线，共 ${dayPlan.activities.length} 个活动`)
@@ -685,6 +691,19 @@ const getActivityIcon = (type: string) => {
 // 初始化地图和地理编码
 const initMapAndGeocode = async () => {
   try {
+    // 检查目的地是否在中国境内（通过高德 API 验证，最精准！）
+    console.log(`验证目的地 "${props.plan.destination}" 是否在中国境内...`)
+    const validation = await amapService.validateChinaDestination(props.plan.destination as string)
+    
+    if (!validation.isChina) {
+      console.warn(`目的地 "${props.plan.destination}" 不在中国境内或无法定位，高德地图仅支持中国地区`)
+      ElMessage.warning(`高德地图仅支持中国境内地点定位，"${props.plan.destination}" 无法在地图上显示路线。您仍可以查看和编辑行程计划。`)
+      // 不初始化地图，直接返回
+      return
+    }
+    
+    console.log(`✅ 目的地 "${props.plan.destination}" 验证通过，开始初始化地图...`)
+    
     await amapService.initMap('plan-editor-map')
     
     console.log('🗺️ 初始化地图，检查已有坐标信息...')

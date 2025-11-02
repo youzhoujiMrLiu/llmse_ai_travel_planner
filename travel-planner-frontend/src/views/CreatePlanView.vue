@@ -581,7 +581,7 @@ import {
 } from '@element-plus/icons-vue'
 import { generateTravelPlan, parseUserInput, type GeneratedPlanResponse, type GeneratePlanRequest, type ParsedUserInput } from '@/api/aiApi'
 import { createTravelPlan } from '@/api/travelPlanApi'
-import { WebSpeechRecognition } from '@/services/speechService'
+import { XFYunSpeechRecognition, WebSpeechRecognition } from '@/services/speechService'
 import { getAmapService, type Location as AmapLocation } from '@/services/amapService'
 
 const router = useRouter()
@@ -621,7 +621,8 @@ const activityDialogContext = reactive({
   activityIndex: -1
 })
 
-let speechRecognition: WebSpeechRecognition | null = null
+let speechRecognition: XFYunSpeechRecognition | WebSpeechRecognition | null = null
+const useXFYun = ref(true)  // 是否使用科大讯飞（优先）
 let amapService = getAmapService()
 
 // 表单数据
@@ -694,19 +695,45 @@ const toggleVoiceInput = () => {
 }
 
 // 开始语音输入
-const startVoiceInput = () => {
+const startVoiceInput = async () => {
   try {
     if (!speechRecognition) {
-      speechRecognition = new WebSpeechRecognition()
+      // 优先尝试使用科大讯飞
+      if (useXFYun.value) {
+        try {
+          speechRecognition = new XFYunSpeechRecognition()
+          console.log('✅ 使用科大讯飞语音识别')
+        } catch (error) {
+          console.warn('⚠️ 科大讯飞初始化失败，降级到Web Speech API')
+          speechRecognition = new WebSpeechRecognition()
+          useXFYun.value = false
+        }
+      } else {
+        speechRecognition = new WebSpeechRecognition()
+      }
     }
 
     isRecording.value = true
     
-    speechRecognition.startRecognition(
-      (text: string) => {
-        form.userInput = text
-        // 语音输入完成后，提示用户点击解析按钮
-        ElMessage.success('语音识别完成，请点击"智能识别"按钮进行解析')
+    // 使用统一的回调接口
+    await speechRecognition.startRecognition(
+      (text: string, isFinal: boolean) => {
+        // 过滤掉只有标点符号的结果
+        const trimmedText = text.trim()
+        
+        if (trimmedText && trimmedText !== '。' && trimmedText !== '，' && trimmedText !== '？' && trimmedText !== '！') {
+          // 实时更新文本
+          form.userInput = trimmedText
+          console.log(`🎤 CreatePlanView - 识别结果: "${trimmedText}" (${isFinal ? '完成' : '进行中'})`)
+        } else {
+          console.warn(`⚠️ 忽略无效结果: "${text}"`)
+        }
+        
+        // 只有在最终结果时才提示
+        if (isFinal && trimmedText) {
+          ElMessage.success('语音识别完成，请点击"智能识别"按钮进行解析')
+          isRecording.value = false
+        }
       },
       (error: string) => {
         ElMessage.error(error)
@@ -714,12 +741,14 @@ const startVoiceInput = () => {
       }
     )
   } catch (error: any) {
-    ElMessage.error(error.message || '浏览器不支持语音识别')
+    ElMessage.error(error.message || '语音识别初始化失败')
+    isRecording.value = false
   }
 }
 
 // 停止语音输入
 const stopVoiceInput = () => {
+  console.log('🛑 停止语音识别')
   if (speechRecognition) {
     speechRecognition.stopRecognition()
   }
