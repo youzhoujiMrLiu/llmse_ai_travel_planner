@@ -1,0 +1,71 @@
+# ============================================
+# Docker 构建忽略文件
+# ============================================
+
+# 环境变量文件 (敏感信息)
+**/.env
+**/.env.local
+**/.env.*.local
+.env
+.env.local
+.env.*.local
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# 文档
+*.md
+!README.md
+LICENSE
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Node.js
+**/node_modules
+**/dist
+**/.npm
+**/.cache
+
+# Maven
+**/target
+**/.mvn
+**/mvnw
+**/mvnw.cmd
+
+# 日志
+*.log
+**/logs
+
+# 测试
+**/test
+**/tests
+**/__tests__
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# 临时文件
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Docker 自身
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# 数据库迁移脚本 (已在代码中)
+database/
+
+# CI/CD
+.github
+.gitlab-ci.yml
